@@ -13,13 +13,13 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore Clamor.sln
+        run: dotnet restore Clamor.slnx
 
       - name: Build
-        run: dotnet build Clamor.sln --configuration Release --no-restore
+        run: dotnet build Clamor.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test Clamor.sln --configuration Release --no-build --verbosity normal
+        run: dotnet test Clamor.slnx --configuration Release --no-build --verbosity normal

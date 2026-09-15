@@ -10,7 +10,7 @@ implementation follows.
 ## Project layout
 
 ```
-Clamor.sln
+Clamor.slnx
 ├── Clamor.Core/       Models + services (profiles, settings, clip library) — no NAudio/WPF
 ├── Clamor.Audio/      NAudio engine: dual-mixer AudioEngine, ClipPlayer, DeviceManager, MicPassthrough
 ├── Clamor.Hotkeys/    Global hotkeys via Win32 RegisterHotKey, no UI framework dependency
@@ -21,14 +21,16 @@ Clamor.sln
 
 ## Building
 
-Requires the .NET 8 SDK and Windows (WPF only runs on Windows; `Clamor.Audio`/`Clamor.Hotkeys`
-use Win32 APIs that are no-ops or unavailable elsewhere). `Clamor.Core` and `Clamor.Tests` will
-build cross-platform, but the app itself needs Windows to run.
+Requires the .NET 10 SDK (or Visual Studio 17.10+) and Windows — WPF only runs on Windows, and
+`Clamor.Audio`/`Clamor.Hotkeys` use Win32 APIs that are no-ops or unavailable elsewhere.
+`Clamor.Core` and `Clamor.Tests` will build cross-platform, but the app itself needs Windows to
+run. The solution file is the newer XML-based `.slnx` format, which needs a `dotnet` CLI/Visual
+Studio recent enough to understand it (SDK 9.0.200+; the CI workflows pin `10.0.x`).
 
 ```
-dotnet restore Clamor.sln
-dotnet build Clamor.sln --configuration Release
-dotnet test Clamor.sln --configuration Release
+dotnet restore Clamor.slnx
+dotnet build Clamor.slnx --configuration Release
+dotnet test Clamor.slnx --configuration Release
 ```
 
 Run the app from Visual Studio (set `Clamor.App` as the startup project) or:
