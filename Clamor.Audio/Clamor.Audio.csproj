@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Clamor.Audio</RootNamespace>
+    <!-- Lets the WPF/XAML-free projects in this solution build on non-Windows dev machines/CI; the
+         audio engine itself still only functions at runtime on Windows (WASAPI via NAudio). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Clamor.Core\Clamor.Core.csproj" />
+  </ItemGroup>
+
+</Project>

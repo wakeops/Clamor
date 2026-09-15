@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Re-run the exact same build+test gate as PR validation rather than trusting a prior
+      # green check — what ships is built and tested fresh from the tagged commit.
+      - name: Restore
+        run: dotnet restore Clamor.sln
+
+      - name: Build
+        run: dotnet build Clamor.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Clamor.sln --configuration Release --no-build --verbosity normal
+
+      - name: Determine version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Publish app (self-contained win-x64)
+        run: >
+          dotnet publish Clamor.App/Clamor.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=false
+          -p:Version=${{ steps.version.outputs.version }}
+          -o publish
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        run: iscc /DMyAppVersion=${{ steps.version.outputs.version }} installer\Clamor.iss
+        shell: cmd
+
+      - name: Upload release artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/Output/*.exe
+          generate_release_notes: true
