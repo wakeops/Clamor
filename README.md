@@ -1,5 +1,5 @@
 <p align="center">
-    <img alt="mothentik" src="src/Clamor.App/Assets/clamor-text-cropped.jpg" height="150" >
+    <img alt="Clamor" src="src/Clamor.App/Assets/clamor-text-cropped.jpg" height="150" >
 </p>
 
 ---
