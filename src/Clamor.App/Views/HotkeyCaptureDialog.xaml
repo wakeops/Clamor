@@ -1,0 +1,15 @@
+<Window x:Class="Clamor.App.Views.HotkeyCaptureDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Clamor.App.Views.Controls"
+        Title="Set Hotkey" Width="360" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <DockPanel>
+        <controls:TitleBar DockPanel.Dock="Top"/>
+        <StackPanel Margin="28" HorizontalAlignment="Center">
+            <TextBlock Text="Press a key combination…" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+            <TextBlock Text="(Esc to cancel)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" HorizontalAlignment="Center"/>
+        </StackPanel>
+    </DockPanel>
+</Window>

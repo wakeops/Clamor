@@ -1,7 +1,7 @@
 <Solution>
-  <Project Path="Clamor.Core/Clamor.Core.csproj" />
-  <Project Path="Clamor.Audio/Clamor.Audio.csproj" />
-  <Project Path="Clamor.Hotkeys/Clamor.Hotkeys.csproj" />
-  <Project Path="Clamor.App/Clamor.App.csproj" />
-  <Project Path="Clamor.Tests/Clamor.Tests.csproj" />
+  <Project Path="src/Clamor.Core/Clamor.Core.csproj" />
+  <Project Path="src/Clamor.Audio/Clamor.Audio.csproj" />
+  <Project Path="src/Clamor.Hotkeys/Clamor.Hotkeys.csproj" />
+  <Project Path="src/Clamor.App/Clamor.App.csproj" />
+  <Project Path="tests/Clamor.Tests/Clamor.Tests.csproj" />
 </Solution>
