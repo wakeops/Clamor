@@ -1,3 +1,9 @@
+<p align="center">
+    <img alt="mothentik" src="src/Clamor.App/Assets/clamor-text-cropped.jpg" height="150" >
+</p>
+
+---
+
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/wakeops/clamor/build-test.yml?branch=main&style=for-the-badge)](https://github.com/wakeops/clamor/actions/workflows/build-test.yml)
 [![Latest Release](https://img.shields.io/github/v/release/wakeops/clamor?style=for-the-badge)](https://github.com/wakeops/clamor/releases/latest)
 [![MIT License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
