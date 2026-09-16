@@ -76,3 +76,9 @@ Settings and profiles are stored as JSON under `%AppData%\Clamor\`:
   `SoundGridView` yet.
 - **Waveform preview/trim, fades, push-to-talk hotkeys** — listed as nice-to-have (v1.1+) in the
   design doc, not implemented.
+
+---
+
+<p align="center">
+    <img alt="Clamor Icon" src="src/Clamor.App/Assets/clamor-icon-cropped.png" height="150" >
+</p>
