@@ -8,6 +8,11 @@ on:
 jobs:
   release:
     runs-on: windows-latest
+    # softprops/action-gh-release needs write access to create the release, upload the
+    # installer, and generate release notes — the default GITHUB_TOKEN is read-only unless
+    # granted this explicitly.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
