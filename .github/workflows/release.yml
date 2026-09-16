@@ -35,7 +35,7 @@ jobs:
 
       - name: Publish app (self-contained win-x64)
         run: >
-          dotnet publish Clamor.App/Clamor.App.csproj
+          dotnet publish src/Clamor.App/Clamor.App.csproj
           --configuration Release
           --runtime win-x64
           --self-contained true
