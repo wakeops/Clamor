@@ -1,3 +1,6 @@
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/wakeops/clamor/built-test.yml?branch=main&style=for-the-badge)](https://github.com/wakeops/clamor/actions/workflows/build-test.yml)
+[![MIT License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+
 # Clamor
 
 A WPF desktop soundboard for Windows, inspired by Soundboard/Voicemod. Clamor plays audio clips
