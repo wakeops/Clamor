@@ -1,4 +1,4 @@
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/wakeops/clamor/built-test.yml?branch=main&style=for-the-badge)](https://github.com/wakeops/clamor/actions/workflows/build-test.yml)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/wakeops/clamor/build-test.yml?branch=main&style=for-the-badge)](https://github.com/wakeops/clamor/actions/workflows/build-test.yml)
 [![Latest Release](https://img.shields.io/github/v/release/wakeops/clamor?style=for-the-badge)](https://github.com/wakeops/clamor/releases/latest)
 [![MIT License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
@@ -15,12 +15,14 @@ implementation follows.
 
 ```
 Clamor.slnx
-├── Clamor.Core/       Models + services (profiles, settings, clip library) — no NAudio/WPF
-├── Clamor.Audio/      NAudio engine: dual-mixer AudioEngine, ClipPlayer, DeviceManager, MicPassthrough
-├── Clamor.Hotkeys/    Global hotkeys via Win32 RegisterHotKey, no UI framework dependency
-├── Clamor.App/        WPF UI (MVVM), dark theme, tray icon, first-run VB-Cable detection
-├── Clamor.Tests/      xUnit tests for Core and Audio's pure logic
-└── installer/         Inno Setup script
+├── src/
+│   ├── Clamor.Core/    Models + services (profiles, settings, clip library) — no NAudio/WPF
+│   ├── Clamor.Audio/   NAudio engine: dual-mixer AudioEngine, ClipPlayer, DeviceManager, MicPassthrough
+│   ├── Clamor.Hotkeys/ Global hotkeys via Win32 RegisterHotKey, no UI framework dependency
+│   └── Clamor.App/     WPF UI (MVVM), dark theme, tray icon, first-run VB-Cable detection
+├── tests/
+│   └── Clamor.Tests/   xUnit tests for Core and Audio's pure logic
+└── installer/          Inno Setup script
 ```
 
 ## Building
@@ -40,7 +42,7 @@ dotnet test Clamor.slnx --configuration Release
 Run the app from Visual Studio (set `Clamor.App` as the startup project) or:
 
 ```
-dotnet run --project Clamor.App
+dotnet run --project src/Clamor.App
 ```
 
 On first launch, Clamor checks for [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) and
@@ -66,7 +68,5 @@ Settings and profiles are stored as JSON under `%AppData%\Clamor\`:
 - **Drag-to-reorder** the sound grid — the data model (`SoundClip.SortOrder`,
   `ClipLibraryService.MoveClip`) already supports it, but there's no drag gesture wired up in
   `SoundGridView` yet.
-- **Tray icon glyph** is a system placeholder (`SystemIcons.Application`) — swap in a branded
-  monochrome/accent `.ico` per the design doc's "Tray icon" guidance.
-- **Waveform preview/trim, fades, multiple profile tabs, push-to-talk hotkeys** — listed as
-  nice-to-have (v1.1+) in the design doc, not implemented.
+- **Waveform preview/trim, fades, push-to-talk hotkeys** — listed as nice-to-have (v1.1+) in the
+  design doc, not implemented.
