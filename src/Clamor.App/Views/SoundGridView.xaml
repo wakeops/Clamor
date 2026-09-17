@@ -5,8 +5,52 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </UserControl.Resources>
     <Grid Background="{StaticResource BackgroundBrush}">
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="16">
-            <ItemsControl ItemsSource="{Binding Clips}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="16,16,16,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Center" MaxWidth="280">
+                <TextBox x:Name="SearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource SearchBoxStyle}"
+                         Width="260" HorizontalAlignment="Left" Padding="16,0,14,0"/>
+                <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="13"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,0" IsHitTestVisible="False"/>
+                <TextBlock Text="Search" Foreground="{StaticResource TextSecondaryBrush}"
+                           HorizontalAlignment="Left" VerticalAlignment="Center" Margin="34,0,0,0" IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsFocused, ElementName=SearchBox}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+
+            <Button Grid.Column="1" Content="Add Clip" Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding AddClipCommand}" Margin="16,0,0,0" VerticalAlignment="Center"/>
+
+            <TextBlock Grid.Column="2" Text="{Binding SoundCountLabel}"
+                       Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="16,0,0,0"/>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="8,8,8,16">
+            <ItemsControl ItemsSource="{Binding ClipsView}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <WrapPanel Orientation="Horizontal"/>
@@ -17,39 +61,42 @@
                     <DataTemplate>
                         <Button Style="{StaticResource SoundButtonStyle}"
                                 Width="160" Height="130" Margin="8"
+                                Tag="{Binding RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 Command="{Binding DataContext.PlayClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 CommandParameter="{Binding}">
+                            <Button.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="Rename"
+                                              Command="{Binding PlacementTarget.Tag.DataContext.RenameClipCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                    <MenuItem Header="Set Hotkey"
+                                              Command="{Binding PlacementTarget.Tag.DataContext.AssignHotkeyCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                    <MenuItem Header="Clear Hotkey"
+                                              Visibility="{Binding HasHotkey, Converter={StaticResource BoolToVis}}"
+                                              Command="{Binding PlacementTarget.Tag.DataContext.ClearHotkeyCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                    <MenuItem Header="Remove"
+                                              Command="{Binding PlacementTarget.Tag.DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                </ContextMenu>
+                            </Button.ContextMenu>
                             <Grid>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <Button Grid.Row="0" Content="&#10005;" ToolTip="Remove"
-                                        Style="{StaticResource IconButtonStyle}"
-                                        Width="20" Height="20" FontSize="9" HorizontalAlignment="Right"
-                                        Command="{Binding DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                        CommandParameter="{Binding}"/>
-
-                                <TextBlock Grid.Row="1" Text="{Binding Name}" TextWrapping="Wrap"
+                                <TextBlock Grid.Row="0" Text="{Binding Name}" TextWrapping="Wrap"
                                            TextAlignment="Center" TextTrimming="CharacterEllipsis"
-                                           VerticalAlignment="Center" FontWeight="SemiBold" FontSize="14"
-                                           MouseLeftButtonDown="ClipName_MouseLeftButtonDown"/>
+                                           VerticalAlignment="Center" FontWeight="SemiBold" FontSize="14"/>
 
-                                <StackPanel Grid.Row="2">
+                                <StackPanel Grid.Row="1">
                                     <Slider Minimum="0" Maximum="1" Value="{Binding Volume, Mode=TwoWay}" Margin="6,0,6,2"/>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,4">
-                                        <Button Content="{Binding HotkeyDisplay}" Style="{StaticResource LinkButtonStyle}"
-                                                FontSize="11"
-                                                Command="{Binding DataContext.AssignHotkeyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}"/>
-                                        <Button Content="&#10005;" Style="{StaticResource LinkButtonStyle}"
-                                                FontSize="9" Margin="4,0,0,0" ToolTip="Clear hotkey"
-                                                Visibility="{Binding HasHotkey, Converter={StaticResource BoolToVis}}"
-                                                Command="{Binding DataContext.ClearHotkeyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}"/>
-                                    </StackPanel>
+                                    <Button Content="{Binding HotkeyDisplay}" Style="{StaticResource LinkButtonStyle}"
+                                            FontSize="11" HorizontalAlignment="Center" Margin="0,0,0,4"
+                                            Command="{Binding DataContext.AssignHotkeyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>

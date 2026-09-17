@@ -5,10 +5,9 @@
         Title="Clamor" Height="650" Width="900" MinWidth="640" MinHeight="420"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True">
+    <Border Style="{StaticResource WindowBorderStyle}" CornerRadius="8">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
@@ -16,28 +15,22 @@
         <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
                 MouseLeftButtonDown="Header_MouseLeftButtonDown">
-            <Grid Margin="16,10">
+            <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image Source="pack://application:,,,/Assets/clamor-text-cropped.png"
-                           Height="22" Stretch="Uniform" VerticalAlignment="Center"/>
-                </StackPanel>
+                <Image Grid.Column="0" Source="pack://application:,,,/Assets/clamor-icon-cropped.png"
+                       Width="24" Height="24" Margin="6,0,0,0"/>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Mic passthrough" Foreground="{StaticResource TextSecondaryBrush}"
-                               VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
-                                  IsChecked="{Binding MicPassthroughEnabled, Mode=TwoWay}"
-                                  VerticalAlignment="Center" Margin="0,0,20,0"/>
-                    <Button Content="Stop All" Command="{Binding StopAllCommand}" Margin="0,0,8,0"/>
-                    <Button Content="Add Clip" Style="{StaticResource PrimaryButtonStyle}"
-                            Command="{Binding AddClipCommand}" Margin="0,0,8,0"/>
-                    <Button Content="&#9881;" Style="{StaticResource IconButtonStyle}"
-                            Command="{Binding OpenSettingsCommand}" ToolTip="Settings" Margin="0,0,12,0"/>
+                <Image Grid.Column="0" Grid.ColumnSpan="3" Source="pack://application:,,,/Assets/clamor-text-cropped.png"
+                       Height="22" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsHitTestVisible="False"/>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Content="&#xE921;" Style="{StaticResource TitleBarButtonStyle}" Click="Minimize_Click"/>
                     <Button x:Name="MaximizeRestoreButton" Content="&#xE922;" Style="{StaticResource TitleBarButtonStyle}"
                             Click="MaximizeRestore_Click"/>
@@ -46,55 +39,119 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="1" Background="{StaticResource SurfaceAltBrush}"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
-            <Grid Margin="16,10">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Orientation="Horizontal">
-                        <ItemsControl ItemsSource="{Binding ProfileTabs}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Style="{StaticResource ProfileTabButtonStyle}" Margin="0,0,8,0"
-                                            Command="{Binding DataContext.SelectProfileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding Name}"
-                                            AllowDrop="True"
-                                            PreviewMouseLeftButtonDown="ProfileTab_PreviewMouseLeftButtonDown"
-                                            PreviewMouseMove="ProfileTab_PreviewMouseMove"
-                                            Drop="ProfileTab_Drop">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Ellipse Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center"
-                                                     Fill="{StaticResource AccentBrush}"
-                                                     Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                                            <TextBlock Text="{Binding Name}"/>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="84"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left nav -->
+            <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="70"/>
+                    </Grid.RowDefinitions>
+
+                    <ItemsControl Grid.Row="0" ItemsSource="{Binding NavItems}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Height="70">
+                                    <Button Style="{StaticResource NavItemButtonStyle}" HorizontalAlignment="Stretch">
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Icon}" FontFamily="Segoe MDL2 Assets" FontSize="20"
+                                                       HorizontalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="{x:Type TextBlock}">
+                                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Name}" FontSize="10" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center" Margin="0,4,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="{x:Type TextBlock}">
+                                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </StackPanel>
                                     </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                    <Border Width="3" HorizontalAlignment="Left" Background="{StaticResource AccentBrush}"
+                                            IsHitTestVisible="False"
+                                            Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
-                        <Button Content="+" Style="{StaticResource IconButtonStyle}"
-                                Command="{Binding AddProfileCommand}" ToolTip="New profile"/>
-                    </StackPanel>
-                </ScrollViewer>
+                    <Button Grid.Row="1" Style="{StaticResource IconButtonStyle}"
+                            Command="{Binding OpenSettingsCommand}" ToolTip="Settings"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <!-- Drawn as a vector path rather than a Segoe MDL2 Assets glyph: on this
+                             machine's font substitution, the gear codepoint resolves to a colored
+                             icon variant that ignores Foreground entirely. -->
+                        <Viewbox Width="16" Height="16">
+                            <Path Fill="{StaticResource TextSecondaryBrush}"
+                                  Data="M19.14,12.94c0.04,-0.3,0.06,-0.61,0.06,-0.94c0,-0.32,-0.02,-0.64,-0.07,-0.94l2.03,-1.58c0.18,-0.14,0.23,-0.41,0.12,-0.61l-1.92,-3.32c-0.12,-0.22,-0.37,-0.29,-0.59,-0.22l-2.39,0.96c-0.5,-0.38,-1.03,-0.7,-1.62,-0.94L14.4,2.81c-0.04,-0.24,-0.24,-0.41,-0.48,-0.41h-3.84c-0.24,0,-0.43,0.17,-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22,-0.08,-0.47,0,-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14,-0.23,0.41,-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39,-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44,-0.17,0.47,-0.41l0.36,-2.54c0.59,-0.24,1.13,-0.56,1.62,-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59,-0.22l1.92,-3.32c0.12,-0.22,0.07,-0.47,-0.12,-0.61L19.14,12.94z M12,15.6c-1.98,0,-3.6,-1.62,-3.6,-3.6s1.62,-3.6,3.6,-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                        </Viewbox>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Deck library -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="60"/>
+                </Grid.RowDefinitions>
+
+                <local:SoundGridView Grid.Row="0"/>
+
+                <Border Grid.Row="1" Background="{StaticResource SurfaceAltBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <Grid Margin="16,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="CURRENT DECK" Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ComboBox ItemsSource="{Binding ProfileNames}" SelectedItem="{Binding SelectedProfileName}"
+                                      Width="180" Margin="0,0,8,0"/>
+                            <Button Content="+" Style="{StaticResource IconButtonStyle}"
+                                    Command="{Binding AddProfileCommand}" ToolTip="New profile"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Content="Stop All" Command="{Binding StopAllCommand}" Margin="0,0,20,0"/>
+                            <TextBlock Text="Mic passthrough" Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                          IsChecked="{Binding MicPassthroughEnabled, Mode=TwoWay}"
+                                          VerticalAlignment="Center" Margin="0,0,20,0"/>
+                            <TextBlock Text="&#128266;" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <Slider Minimum="0" Maximum="1" Value="{Binding MasterVolume, Mode=TwoWay}"
+                                    Width="140" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
             </Grid>
-        </Border>
-
-        <Border Grid.Row="2" Background="{StaticResource SurfaceAltBrush}"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" Margin="16,10">
-                <Button Content="Set Active" Style="{StaticResource PrimaryButtonStyle}"
-                        Command="{Binding ActivateViewedProfileCommand}" Margin="0,0,8,0"/>
-                <Button Content="Delete Profile" Style="{StaticResource DangerButtonStyle}"
-                        Command="{Binding DeleteViewedProfileCommand}"
-                        Visibility="{Binding IsViewingInactiveProfile, Converter={StaticResource BoolToVisibilityConverter}}"/>
-            </StackPanel>
-        </Border>
-
-        <local:SoundGridView Grid.Row="3"/>
+        </Grid>
     </Grid>
+    </Border>
 </Window>

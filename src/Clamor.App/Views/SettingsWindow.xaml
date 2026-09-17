@@ -9,6 +9,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </Window.Resources>
 
+    <Border Style="{StaticResource WindowBorderStyle}">
     <DockPanel>
         <controls:TitleBar DockPanel.Dock="Top"/>
         <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource SurfaceBrush}">
@@ -68,4 +69,5 @@
         </StackPanel>
         </ScrollViewer>
     </DockPanel>
+    </Border>
 </Window>

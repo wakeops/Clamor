@@ -23,6 +23,7 @@
   <ItemGroup>
     <Resource Include="Assets\clamor.ico" />
     <Resource Include="Assets\clamor-text-cropped.png" />
+    <Resource Include="Assets\clamor-icon-cropped.png" />
   </ItemGroup>
 
   <ItemGroup>

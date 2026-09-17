@@ -10,13 +10,16 @@
     <Color x:Key="BorderColor">#2A2A2A</Color>
     <Color x:Key="BorderStrongColor">#3A3A3A</Color>
 
-    <Color x:Key="AccentColor">#8B5CF6</Color>
-    <Color x:Key="AccentHoverColor">#A78BFA</Color>
-    <Color x:Key="AccentPressedColor">#7C3AED</Color>
-    <Color x:Key="AccentMutedColor">#3A2E5C</Color>
+    <!-- Sampled from the CLAMOR wordmark art so every accented surface matches the logo exactly.
+         Hover lightens it, pressed deepens it, muted is the dark plum used for pressed fills and
+         the sound-button glow. -->
+    <Color x:Key="AccentColor">#FF3D96</Color>
+    <Color x:Key="AccentHoverColor">#FF70B0</Color>
+    <Color x:Key="AccentPressedColor">#E31B7B</Color>
+    <Color x:Key="AccentMutedColor">#5A2440</Color>
 
     <Color x:Key="TextPrimaryColor">#F5F5F5</Color>
-    <Color x:Key="TextSecondaryColor">#9CA3AF</Color>
+    <Color x:Key="TextSecondaryColor">#89888D</Color>
     <Color x:Key="TextDisabledColor">#5A5A5A</Color>
 
     <Color x:Key="DangerColor">#EF4444</Color>

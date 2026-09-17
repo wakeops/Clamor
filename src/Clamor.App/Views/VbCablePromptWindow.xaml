@@ -3,7 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Clamor.App.Views.Controls"
         Title="Virtual Audio Cable" Width="420" SizeToContent="Height" ResizeMode="NoResize"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{StaticResource SurfaceBrush}">
+    <Border Style="{StaticResource WindowBorderStyle}">
     <DockPanel>
         <controls:TitleBar DockPanel.Dock="Top"/>
         <StackPanel Margin="24">
@@ -15,4 +17,5 @@
             </StackPanel>
         </StackPanel>
     </DockPanel>
+    </Border>
 </Window>

@@ -1,6 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Threading;
 using Clamor.App.Services;
 using Clamor.App.Views;
@@ -13,7 +16,7 @@ namespace Clamor.App.ViewModels;
 
 public sealed class MainViewModel : ViewModelBase, IDisposable
 {
-    /// <summary>Always pinned first in the profile tab bar and never reorderable.</summary>
+    /// <summary>Always listed first in the deck dropdown.</summary>
     private const string DefaultProfileName = "Default";
 
     private readonly IClipLibraryService _clipLibrary;
@@ -28,20 +31,33 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private readonly Dictionary<Guid, SoundClipViewModel> _clipsById = new();
     private readonly Dictionary<Guid, Guid> _voiceToClip = new();
     private readonly object _voiceMapLock = new();
-
-    /// <summary>Hotkey registrations for the ACTIVE profile's clips only (hotkeyId -> clipId).
-    /// Independent of <see cref="Clips"/>, which shows whichever profile is being viewed —
-    /// the active profile's hotkeys stay live even while browsing a different one.</summary>
-    private readonly Dictionary<int, Guid> _activeHotkeyMap = new();
+    private readonly Dictionary<int, Guid> _hotkeyIdToClip = new();
 
     private AppSettings _settings;
-    private Profile _activeProfile;
     private int? _stopAllHotkeyId;
     private bool _micPassthroughEnabled;
+    private double _masterVolume;
+
+    /// <summary>True while the hotkey-capture dialog is up. <see cref="OnHotkeyPressed"/> checks
+    /// this before acting — global hotkeys stay registered (and can still be re-pressed to
+    /// confirm the same combo) while the dialog is open, but they shouldn't also play/stop clips
+    /// out from under the user while they're just trying to (re)bind a key. <c>volatile</c>
+    /// because it's set on the UI thread but read from <see cref="HotkeyService"/>'s own thread.</summary>
+    private volatile bool _isCapturingHotkey;
+    private string _searchText = string.Empty;
 
     public ObservableCollection<SoundClipViewModel> Clips { get; } = new();
 
-    public ObservableCollection<ProfileTabViewModel> ProfileTabs { get; } = new();
+    /// <summary>Filtered view of <see cref="Clips"/> that the sound grid binds to — keeps the
+    /// search box from having to mutate the underlying collection.</summary>
+    public ICollectionView ClipsView { get; }
+
+    public ObservableCollection<string> ProfileNames { get; } = new();
+
+    /// <summary>Left nav rail entries. Just "Decks" for now, always active — no other
+    /// destination exists yet to navigate away to.</summary>
+    public ObservableCollection<NavItemViewModel> NavItems { get; } =
+        new() { new NavItemViewModel("DECKS", "\uED25", isActive: true) };
 
     public bool MicPassthroughEnabled
     {
@@ -59,28 +75,64 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>The profile whose hotkeys are currently live, regardless of what's being viewed.</summary>
-    public string ActiveProfileName => _activeProfile.Name;
+    /// <summary>Linear gain (0.0-1.0) applied to both the cable and monitor output buses.</summary>
+    public double MasterVolume
+    {
+        get => _masterVolume;
+        set
+        {
+            if (!SetField(ref _masterVolume, value))
+            {
+                return;
+            }
 
-    /// <summary>The profile currently shown in the sound grid — may or may not be the active one.</summary>
-    public string ViewedProfileName => _clipLibrary.CurrentProfile.Name;
+            _audioEngine.MasterVolume = (float)value;
+            _settings.MasterVolume = value;
+            _settingsService.Save(_settings);
+        }
+    }
 
-    public bool IsViewingActiveProfile =>
-        string.Equals(ViewedProfileName, ActiveProfileName, StringComparison.OrdinalIgnoreCase);
+    /// <summary>Filters the sound grid by clip name (case-insensitive substring match).</summary>
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (!SetField(ref _searchText, value))
+            {
+                return;
+            }
 
-    public bool IsViewingInactiveProfile => !IsViewingActiveProfile;
+            ClipsView.Refresh();
+        }
+    }
+
+    /// <summary>Count of clips currently visible in the grid — shrinks as a search filter narrows
+    /// the results, matching <see cref="ClipsView"/> rather than the unfiltered <see cref="Clips"/>.</summary>
+    public int SoundCount => ClipsView.Cast<object>().Count();
+
+    /// <summary>"1 Sound" / "N Sounds" — singular only at exactly one clip.</summary>
+    public string SoundCountLabel => SoundCount == 1 ? "1 Sound" : $"{SoundCount} Sounds";
+
+    public string ActiveProfileName => _clipLibrary.CurrentProfile.Name;
+
+    /// <summary>Two-way bound to the deck dropdown — picking a profile here both loads its
+    /// sounds/hotkeys into the grid and makes it the active (live-hotkey) profile.</summary>
+    public string SelectedProfileName
+    {
+        get => ActiveProfileName;
+        set => SwitchProfile(value);
+    }
 
     public RelayCommand AddClipCommand { get; }
     public RelayCommand StopAllCommand { get; }
     public RelayCommand OpenSettingsCommand { get; }
     public RelayCommand<SoundClipViewModel> PlayClipCommand { get; }
     public RelayCommand<SoundClipViewModel> RemoveClipCommand { get; }
+    public RelayCommand<SoundClipViewModel> RenameClipCommand { get; }
     public RelayCommand<SoundClipViewModel> AssignHotkeyCommand { get; }
     public RelayCommand<SoundClipViewModel> ClearHotkeyCommand { get; }
-    public RelayCommand<string> SelectProfileCommand { get; }
-    public RelayCommand ActivateViewedProfileCommand { get; }
     public RelayCommand AddProfileCommand { get; }
-    public RelayCommand DeleteViewedProfileCommand { get; }
 
     public MainViewModel(
         IClipLibraryService clipLibrary,
@@ -100,9 +152,18 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _deviceManager = deviceManager;
         _dispatcher = Application.Current.Dispatcher;
 
+        ClipsView = CollectionViewSource.GetDefaultView(Clips);
+        ClipsView.Filter = MatchesSearch;
+        ((INotifyCollectionChanged)ClipsView).CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(SoundCount));
+            OnPropertyChanged(nameof(SoundCountLabel));
+        };
+
         _settings = _settingsService.Load();
         _micPassthroughEnabled = _settings.MicPassthroughEnabled;
-        _activeProfile = _clipLibrary.CurrentProfile;
+        _masterVolume = _settings.MasterVolume;
+        _audioEngine.MasterVolume = (float)_masterVolume;
 
         _audioEngine.ClipStopped += OnClipStopped;
         _hotkeyService.HotkeyPressed += OnHotkeyPressed;
@@ -112,16 +173,13 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         OpenSettingsCommand = new RelayCommand(OpenSettings);
         PlayClipCommand = new RelayCommand<SoundClipViewModel>(PlayClip);
         RemoveClipCommand = new RelayCommand<SoundClipViewModel>(RemoveClip);
+        RenameClipCommand = new RelayCommand<SoundClipViewModel>(BeginRenameClip);
         AssignHotkeyCommand = new RelayCommand<SoundClipViewModel>(BeginHotkeyCapture);
         ClearHotkeyCommand = new RelayCommand<SoundClipViewModel>(ClearHotkey);
-        SelectProfileCommand = new RelayCommand<string>(SelectProfile);
-        ActivateViewedProfileCommand = new RelayCommand(_ => ActivateProfile(ViewedProfileName), _ => IsViewingInactiveProfile);
         AddProfileCommand = new RelayCommand(AddProfile);
-        DeleteViewedProfileCommand = new RelayCommand(_ => DeleteViewedProfile(), _ => IsViewingInactiveProfile);
 
         LoadClipsFromProfile();
-        RegisterActiveProfileHotkeys();
-        RefreshProfileTabs();
+        RefreshProfileNames();
         EnsureDefaultDevicesConfigured();
         ApplyOutputDevices();
         ApplyMicPassthroughState();
@@ -138,61 +196,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             var vm = new SoundClipViewModel(clip, OnClipVolumeChanged);
             Clips.Add(vm);
             _clipsById[vm.Id] = vm;
-        }
-
-        SyncActiveHotkeyDisplays();
-    }
-
-    /// <summary>Reflects already-registered active-profile hotkeys onto the freshly created
-    /// view models for this load (a no-op unless the viewed profile is also the active one).</summary>
-    private void SyncActiveHotkeyDisplays()
-    {
-        foreach (var (hotkeyId, clipId) in _activeHotkeyMap)
-        {
-            if (_clipsById.TryGetValue(clipId, out var vm))
-            {
-                vm.HotkeyRegistrationId = hotkeyId;
-            }
-        }
-    }
-
-    /// <summary>(Re)registers global hotkeys for the active profile's clips, independent of
-    /// whatever profile is currently displayed in <see cref="Clips"/>.</summary>
-    private void RegisterActiveProfileHotkeys()
-    {
-        foreach (var hotkeyId in _activeHotkeyMap.Keys.ToList())
-        {
-            _hotkeyService.Unregister(hotkeyId);
-        }
-
-        _activeHotkeyMap.Clear();
-
-        foreach (var vm in Clips)
-        {
-            vm.HotkeyRegistrationId = null;
-        }
-
-        foreach (var clip in _activeProfile.Clips)
-        {
-            if (clip.Hotkey is null)
-            {
-                continue;
-            }
-
-            try
-            {
-                var id = _hotkeyService.Register(clip.Hotkey);
-                _activeHotkeyMap[id] = clip.Id;
-                if (_clipsById.TryGetValue(clip.Id, out var vm))
-                {
-                    vm.HotkeyRegistrationId = id;
-                }
-            }
-            catch (InvalidOperationException)
-            {
-                // Saved hotkey is claimed by something else this session — the clip keeps its
-                // saved binding (still shown in the UI) but simply won't fire until reassigned.
-            }
+            TryRegisterClipHotkey(vm);
         }
     }
 
@@ -222,6 +226,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private bool MatchesSearch(object item) =>
+        string.IsNullOrWhiteSpace(SearchText) ||
+        item is not SoundClipViewModel clip ||
+        clip.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+
     private void OnClipVolumeChanged(Guid clipId, double volume) => _clipLibrary.UpdateVolume(clipId, volume);
 
     public void RemoveClip(SoundClipViewModel? clipVm)
@@ -235,6 +244,22 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _clipLibrary.RemoveClip(clipVm.Id);
         Clips.Remove(clipVm);
         _clipsById.Remove(clipVm.Id);
+    }
+
+    private void BeginRenameClip(SoundClipViewModel? clipVm)
+    {
+        if (clipVm is null)
+        {
+            return;
+        }
+
+        var newName = InputDialog.Prompt(Application.Current.MainWindow, "Rename Clip", "Clip name:", clipVm.Name);
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            return;
+        }
+
+        RenameClip(clipVm, newName.Trim());
     }
 
     public void RenameClip(SoundClipViewModel clipVm, string name)
@@ -283,31 +308,28 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private void OnHotkeyPressed(object? sender, int hotkeyId)
     {
+        if (_isCapturingHotkey)
+        {
+            return;
+        }
+
         _dispatcher.BeginInvoke(() =>
         {
+            if (_isCapturingHotkey)
+            {
+                return;
+            }
+
             if (_stopAllHotkeyId is not null && hotkeyId == _stopAllHotkeyId)
             {
                 StopAll();
                 return;
             }
 
-            if (!_activeHotkeyMap.TryGetValue(hotkeyId, out var clipId))
-            {
-                return;
-            }
-
-            if (_clipsById.TryGetValue(clipId, out var clipVm))
+            if (_hotkeyIdToClip.TryGetValue(hotkeyId, out var clipId) &&
+                _clipsById.TryGetValue(clipId, out var clipVm))
             {
                 PlayClip(clipVm);
-                return;
-            }
-
-            // Active profile's clip isn't the one currently on screen — play it directly,
-            // with no view model around to reflect a "now playing" glow.
-            var clip = _activeProfile.Clips.FirstOrDefault(c => c.Id == clipId);
-            if (clip is not null)
-            {
-                _audioEngine.PlayClip(clip.FilePath, clip.Volume);
             }
         });
     }
@@ -319,29 +341,38 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var binding = HotkeyCaptureDialog.Capture(Application.Current.MainWindow);
+        // Free the clip's own current combo so pressing it again during capture reaches the
+        // dialog as a normal keystroke instead of being swallowed as an already-registered
+        // global hotkey — otherwise re-confirming the same binding silently does nothing.
+        UnregisterClipHotkey(clipVm);
+        _isCapturingHotkey = true;
+        HotkeyBinding? binding;
+        try
+        {
+            binding = HotkeyCaptureDialog.Capture(Application.Current.MainWindow);
+        }
+        finally
+        {
+            _isCapturingHotkey = false;
+        }
+
         if (binding is null)
         {
+            TryRegisterClipHotkey(clipVm); // cancelled — restore the binding we freed above
             return;
         }
 
-        // Only the active profile's hotkeys are ever globally registered — editing one on a
-        // profile you're merely viewing just saves it for when that profile is made active.
-        if (IsViewingActiveProfile)
+        try
         {
-            UnregisterClipHotkey(clipVm);
-
-            try
-            {
-                var id = _hotkeyService.Register(binding);
-                _activeHotkeyMap[id] = clipVm.Id;
-                clipVm.HotkeyRegistrationId = id;
-            }
-            catch (InvalidOperationException ex)
-            {
-                MessageDialog.ShowInfo(Application.Current.MainWindow, "Hotkey unavailable", ex.Message);
-                return;
-            }
+            var id = _hotkeyService.Register(binding);
+            _hotkeyIdToClip[id] = clipVm.Id;
+            clipVm.HotkeyRegistrationId = id;
+        }
+        catch (InvalidOperationException ex)
+        {
+            MessageDialog.ShowInfo(Application.Current.MainWindow, "Hotkey unavailable", ex.Message);
+            TryRegisterClipHotkey(clipVm); // new combo was rejected — restore the old one
+            return;
         }
 
         _clipLibrary.UpdateHotkey(clipVm.Id, binding);
@@ -355,11 +386,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (IsViewingActiveProfile)
-        {
-            UnregisterClipHotkey(clipVm);
-        }
-
+        UnregisterClipHotkey(clipVm);
         _clipLibrary.UpdateHotkey(clipVm.Id, null);
         clipVm.RefreshHotkeyDisplay(null);
     }
@@ -372,8 +399,28 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
 
         _hotkeyService.Unregister(id);
-        _activeHotkeyMap.Remove(id);
+        _hotkeyIdToClip.Remove(id);
         clipVm.HotkeyRegistrationId = null;
+    }
+
+    private void TryRegisterClipHotkey(SoundClipViewModel clipVm)
+    {
+        if (clipVm.Hotkey is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var id = _hotkeyService.Register(clipVm.Hotkey);
+            _hotkeyIdToClip[id] = clipVm.Id;
+            clipVm.HotkeyRegistrationId = id;
+        }
+        catch (InvalidOperationException)
+        {
+            // Saved hotkey is claimed by something else this session — the clip keeps its
+            // saved binding (still shown in the UI) but simply won't fire until reassigned.
+        }
     }
 
     private void RegisterStopAllHotkey()
@@ -507,47 +554,28 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     public DeviceManager Devices => _deviceManager;
 
-    /// <summary>Shows a different profile's sounds/hotkeys in the grid without changing which
-    /// profile is active — lets a profile be browsed or edited ahead of being switched to.</summary>
-    public void SelectProfile(string? name)
+    /// <summary>Loads a different profile's sounds/hotkeys into the grid and makes it the one
+    /// whose hotkeys fire globally.</summary>
+    public void SwitchProfile(string? name)
     {
-        if (string.IsNullOrEmpty(name) || string.Equals(name, ViewedProfileName, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        _clipLibrary.LoadProfile(name);
-        LoadClipsFromProfile();
-        RefreshProfileTabs();
-        OnPropertyChanged(nameof(ViewedProfileName));
-        OnPropertyChanged(nameof(IsViewingActiveProfile));
-        OnPropertyChanged(nameof(IsViewingInactiveProfile));
-    }
-
-    /// <summary>Makes the given profile the one whose hotkeys fire globally, regardless of
-    /// which profile is currently being viewed.</summary>
-    public void ActivateProfile(string name)
-    {
-        if (string.Equals(name, ActiveProfileName, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrEmpty(name) || string.Equals(name, ActiveProfileName, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
         StopAll();
+        foreach (var clipVm in Clips)
+        {
+            UnregisterClipHotkey(clipVm);
+        }
 
-        _activeProfile = string.Equals(name, ViewedProfileName, StringComparison.OrdinalIgnoreCase)
-            ? _clipLibrary.CurrentProfile
-            : _profileService.LoadOrCreate(name);
-
+        _clipLibrary.LoadProfile(name);
         _settings.ActiveProfileName = name;
         _settingsService.Save(_settings);
-
-        RegisterActiveProfileHotkeys();
-        RefreshProfileTabs();
+        LoadClipsFromProfile();
 
         OnPropertyChanged(nameof(ActiveProfileName));
-        OnPropertyChanged(nameof(IsViewingActiveProfile));
-        OnPropertyChanged(nameof(IsViewingInactiveProfile));
+        OnPropertyChanged(nameof(SelectedProfileName));
     }
 
     public void SetMinimizeToTray(bool value)
@@ -559,149 +587,25 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public void CreateProfile(string name)
     {
         _profileService.LoadOrCreate(name);
-
-        if (!string.Equals(name, DefaultProfileName, StringComparison.OrdinalIgnoreCase) &&
-            !_settings.ProfileOrder.Contains(name, StringComparer.OrdinalIgnoreCase))
-        {
-            _settings.ProfileOrder.Add(name);
-            _settingsService.Save(_settings);
-        }
-
-        SelectProfile(name);
-        RefreshProfileTabs();
+        RefreshProfileNames();
+        SwitchProfile(name);
     }
 
-    public void DeleteProfile(string name)
-    {
-        if (string.Equals(name, ActiveProfileName, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Cannot delete the active profile — switch to another one first.");
-        }
-
-        var wasViewed = string.Equals(name, ViewedProfileName, StringComparison.OrdinalIgnoreCase);
-        _profileService.Delete(name);
-
-        _settings.ProfileOrder.RemoveAll(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase));
-        _settingsService.Save(_settings);
-
-        if (wasViewed)
-        {
-            SelectProfile(ActiveProfileName);
-        }
-
-        RefreshProfileTabs();
-    }
-
-    public void RenameActiveProfile(string newName)
-    {
-        var oldName = ActiveProfileName;
-        var wasViewed = IsViewingActiveProfile;
-
-        _profileService.Rename(oldName, newName);
-        _activeProfile = _profileService.Load(newName);
-        _settings.ActiveProfileName = newName;
-
-        var orderIndex = _settings.ProfileOrder.FindIndex(n => string.Equals(n, oldName, StringComparison.OrdinalIgnoreCase));
-        if (orderIndex >= 0)
-        {
-            _settings.ProfileOrder[orderIndex] = newName;
-        }
-
-        _settingsService.Save(_settings);
-
-        if (wasViewed)
-        {
-            _clipLibrary.LoadProfile(newName);
-            LoadClipsFromProfile();
-        }
-
-        RegisterActiveProfileHotkeys();
-        RefreshProfileTabs();
-
-        OnPropertyChanged(nameof(ActiveProfileName));
-        OnPropertyChanged(nameof(ViewedProfileName));
-        OnPropertyChanged(nameof(IsViewingActiveProfile));
-        OnPropertyChanged(nameof(IsViewingInactiveProfile));
-    }
-
-    /// <summary>Moves a dragged (non-Default) profile so it sits immediately before/after
-    /// <paramref name="targetName"/> in the tab bar. Dropping onto "Default" moves it to the
-    /// front of the non-Default group, since Default itself can never be displaced.</summary>
-    public void ReorderProfile(string draggedName, string targetName)
-    {
-        if (string.Equals(draggedName, DefaultProfileName, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(draggedName, targetName, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        var order = GetOrderedProfileNames()
-            .Where(n => !string.Equals(n, DefaultProfileName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (!order.Remove(draggedName))
-        {
-            return;
-        }
-
-        if (string.Equals(targetName, DefaultProfileName, StringComparison.OrdinalIgnoreCase))
-        {
-            order.Insert(0, draggedName);
-        }
-        else
-        {
-            var targetIndex = order.FindIndex(n => string.Equals(n, targetName, StringComparison.OrdinalIgnoreCase));
-            order.Insert(targetIndex < 0 ? order.Count : targetIndex, draggedName);
-        }
-
-        _settings.ProfileOrder = order;
-        _settingsService.Save(_settings);
-        RefreshProfileTabs();
-    }
-
-    /// <summary>All profile names with "Default" pinned first, followed by the rest in the
-    /// user's saved order (<see cref="AppSettings.ProfileOrder"/>) — any profile not yet in
-    /// that list, such as one just created, sorts alphabetically after the ones that are.</summary>
-    private IEnumerable<string> GetOrderedProfileNames()
+    /// <summary>All profile names with "Default" listed first, the rest alphabetically after.</summary>
+    private void RefreshProfileNames()
     {
         var all = _profileService.GetProfileNames();
         var isDefault = new Func<string, bool>(n => string.Equals(n, DefaultProfileName, StringComparison.OrdinalIgnoreCase));
-        var remaining = all.Where(n => !isDefault(n)).ToList();
 
-        var ordered = new List<string>();
-        foreach (var name in _settings.ProfileOrder)
-        {
-            var match = remaining.FirstOrDefault(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase));
-            if (match is not null)
-            {
-                ordered.Add(match);
-                remaining.Remove(match);
-            }
-        }
-
-        ordered.AddRange(remaining);
-
+        ProfileNames.Clear();
         if (all.Any(isDefault))
         {
-            yield return DefaultProfileName;
+            ProfileNames.Add(DefaultProfileName);
         }
 
-        foreach (var name in ordered)
+        foreach (var name in all.Where(n => !isDefault(n)))
         {
-            yield return name;
-        }
-    }
-
-    private void RefreshProfileTabs()
-    {
-        ProfileTabs.Clear();
-        foreach (var name in GetOrderedProfileNames())
-        {
-            ProfileTabs.Add(new ProfileTabViewModel(name)
-            {
-                IsActive = string.Equals(name, ActiveProfileName, StringComparison.OrdinalIgnoreCase),
-                IsSelected = string.Equals(name, ViewedProfileName, StringComparison.OrdinalIgnoreCase),
-            });
+            ProfileNames.Add(name);
         }
     }
 
@@ -714,31 +618,6 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
 
         CreateProfile(name.Trim());
-    }
-
-    private void DeleteViewedProfile()
-    {
-        var name = ViewedProfileName;
-        var confirmed = MessageDialog.ShowConfirm(
-            Application.Current.MainWindow,
-            "Delete Profile",
-            $"Delete the profile \"{name}\"? This can't be undone.",
-            "Delete",
-            "Cancel");
-
-        if (!confirmed)
-        {
-            return;
-        }
-
-        try
-        {
-            DeleteProfile(name);
-        }
-        catch (InvalidOperationException ex)
-        {
-            MessageDialog.ShowInfo(Application.Current.MainWindow, "Can't delete profile", ex.Message);
-        }
     }
 
     private void OpenSettings(object? parameter = null)

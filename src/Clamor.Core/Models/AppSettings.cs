@@ -18,9 +18,8 @@ public sealed class AppSettings
 
     public string ActiveProfileName { get; set; } = "Default";
 
-    /// <summary>User-defined display order for profiles other than "Default" (which is always
-    /// pinned first). Profiles not yet in this list — newly created ones — sort after it.</summary>
-    public List<string> ProfileOrder { get; set; } = new();
+    /// <summary>Linear gain (0.0-1.0) applied to both output buses.</summary>
+    public double MasterVolume { get; set; } = 1.0;
 
     public HotkeyBinding? StopAllHotkey { get; set; }
 

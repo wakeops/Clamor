@@ -4,7 +4,9 @@
         xmlns:controls="clr-namespace:Clamor.App.Views.Controls"
         Title="Set Hotkey" Width="360" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{StaticResource SurfaceBrush}"
         PreviewKeyDown="Window_PreviewKeyDown">
+    <Border Style="{StaticResource WindowBorderStyle}">
     <DockPanel>
         <controls:TitleBar DockPanel.Dock="Top"/>
         <StackPanel Margin="28" HorizontalAlignment="Center">
@@ -12,4 +14,5 @@
             <TextBlock Text="(Esc to cancel)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" HorizontalAlignment="Center"/>
         </StackPanel>
     </DockPanel>
+    </Border>
 </Window>

@@ -5,6 +5,7 @@
         Width="380" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="{StaticResource SurfaceBrush}">
+    <Border Style="{StaticResource WindowBorderStyle}">
     <DockPanel>
         <controls:TitleBar DockPanel.Dock="Top"/>
         <StackPanel Margin="20">
@@ -17,4 +18,5 @@
             </StackPanel>
         </StackPanel>
     </DockPanel>
+    </Border>
 </Window>

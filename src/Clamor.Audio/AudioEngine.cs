@@ -36,11 +36,34 @@ public sealed class AudioEngine : IDisposable
     private MMDevice? _cableDevice;
     private MMDevice? _monitorDevice;
     private ISampleProvider? _micMixerInput;
+    private VolumeSampleProvider? _cableVolume;
+    private VolumeSampleProvider? _monitorVolume;
+    private float _masterVolume = 1f;
 
     public event EventHandler<Guid>? ClipStarted;
     public event EventHandler<Guid>? ClipStopped;
 
     public bool IsMicPassthroughActive => _micPassthrough.IsActive;
+
+    /// <summary>Linear gain (0.0-1.0) applied to both output buses, on top of each clip's own
+    /// volume. Settable at any time, including before outputs have started.</summary>
+    public float MasterVolume
+    {
+        get => _masterVolume;
+        set
+        {
+            _masterVolume = Math.Clamp(value, 0f, 1f);
+            if (_cableVolume is not null)
+            {
+                _cableVolume.Volume = _masterVolume;
+            }
+
+            if (_monitorVolume is not null)
+            {
+                _monitorVolume.Volume = _masterVolume;
+            }
+        }
+    }
 
     public AudioEngine()
     {
@@ -58,12 +81,14 @@ public sealed class AudioEngine : IDisposable
 
         _cableDevice = _deviceEnumerator.GetDevice(cableDeviceId);
         _cableOut = new WasapiOut(_cableDevice, AudioClientShareMode.Shared, true, LatencyMs);
-        _cableOut.Init(_cableMixer);
+        _cableVolume = new VolumeSampleProvider(_cableMixer) { Volume = _masterVolume };
+        _cableOut.Init(_cableVolume);
         _cableOut.Play();
 
         _monitorDevice = _deviceEnumerator.GetDevice(monitorDeviceId);
         _monitorOut = new WasapiOut(_monitorDevice, AudioClientShareMode.Shared, true, LatencyMs);
-        _monitorOut.Init(_monitorMixer);
+        _monitorVolume = new VolumeSampleProvider(_monitorMixer) { Volume = _masterVolume };
+        _monitorOut.Init(_monitorVolume);
         _monitorOut.Play();
     }
 
@@ -80,6 +105,9 @@ public sealed class AudioEngine : IDisposable
         _monitorOut = null;
         _monitorDevice?.Dispose();
         _monitorDevice = null;
+
+        _cableVolume = null;
+        _monitorVolume = null;
     }
 
     public void StartMicPassthrough(string inputDeviceId)
