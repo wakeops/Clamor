@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Clamor.App.Services;
 using Clamor.App.ViewModels;
 
@@ -101,6 +102,21 @@ public partial class MainWindow : Window
         }
 
         DragMove();
+    }
+
+    private void PlaybackDrawerHost_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is not true)
+        {
+            return;
+        }
+
+        var duration = TimeSpan.FromMilliseconds(180);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        PlaybackDrawerPanel.RenderTransform.BeginAnimation(
+            TranslateTransform.XProperty,
+            new DoubleAnimation(-PlaybackDrawerPanel.Width, 0, duration) { EasingFunction = ease });
+        PlaybackDrawerScrim.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration));
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;

@@ -60,7 +60,8 @@ bundle, so you install it separately (and reboot once, per VB-Audio's own requir
 Settings and profiles are stored as JSON under `%AppData%\Clamor\`:
 
 - `settings.json` — selected devices, mic passthrough default, minimize-to-tray behavior
-- `profiles\*.json` — one file per profile: clip paths, hotkeys, per-clip volume
+- `profiles\*.json` — one file per profile: clip paths, hotkeys, per-clip volume, and per-clip
+  playback settings (start/end trim, speed, random play) set from a clip's right-click **Playback** drawer
 
 ## CI/CD
 
@@ -74,7 +75,7 @@ Settings and profiles are stored as JSON under `%AppData%\Clamor\`:
 - **Drag-to-reorder** the sound grid — the data model (`SoundClip.SortOrder`,
   `ClipLibraryService.MoveClip`) already supports it, but there's no drag gesture wired up in
   `SoundGridView` yet.
-- **Waveform preview/trim, fades, push-to-talk hotkeys** — listed as nice-to-have (v1.1+) in the
+- **Waveform display, fades, push-to-talk hotkeys** — listed as nice-to-have (v1.1+) in the
   design doc, not implemented.
 
 ---

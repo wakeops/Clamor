@@ -67,4 +67,23 @@ public class AudioFormatUtilsTests
         Assert.IsType<WdlResamplingSampleProvider>(result);
         Assert.Equal(48000, result.WaveFormat.SampleRate);
     }
+
+    [Fact]
+    public void ApplySpeed_ReturnsSameInstance_AtNormalSpeed()
+    {
+        var source = new FakeSampleProvider(48000, 2);
+
+        Assert.Same(source, AudioFormatUtils.ApplySpeed(source, 1.0));
+    }
+
+    [Fact]
+    public void ApplySpeed_ScalesReportedSampleRate()
+    {
+        var source = new FakeSampleProvider(48000, 2);
+
+        var result = AudioFormatUtils.ApplySpeed(source, 1.5);
+
+        Assert.Equal(72000, result.WaveFormat.SampleRate);
+        Assert.Equal(2, result.WaveFormat.Channels);
+    }
 }

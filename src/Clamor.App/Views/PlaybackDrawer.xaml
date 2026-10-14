@@ -1,0 +1,162 @@
+<UserControl x:Class="Clamor.App.Views.PlaybackDrawer"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Clamor.App.Views.Controls">
+    <!-- DataContext is a ClipPlaybackViewModel. Every control applies its change immediately;
+         there's no Save/Cancel, matching the grid's own volume slider. -->
+    <UserControl.Resources>
+        <Style x:Key="SectionLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <Style x:Key="ValueLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Grid Grid.Row="0" Margin="20,16,12,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="PLAYBACK" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,2"/>
+                    <TextBlock Text="{Binding Clip.Name}" FontSize="16" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Clip.FilePath}"/>
+                </StackPanel>
+                <Button Grid.Column="1" Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                        Style="{StaticResource IconButtonStyle}" ToolTip="Close (Esc)"
+                        Command="{Binding CloseCommand}" VerticalAlignment="Top"/>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="20,4,20,20">
+
+                    <!-- Output volume -->
+                    <TextBlock Text="OUTPUT VOLUME" Style="{StaticResource SectionLabelStyle}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="44"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Minimum="0" Maximum="1" Value="{Binding Clip.Volume, Mode=TwoWay}"
+                                VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Clip.Volume, StringFormat={}{0:P0}}"
+                                   Style="{StaticResource ValueLabelStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Trim -->
+                    <Grid Margin="0,24,0,0">
+                        <TextBlock Text="START / END" Style="{StaticResource SectionLabelStyle}"/>
+                        <Button Content="Reset" Style="{StaticResource LinkButtonStyle}" FontSize="11"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Command="{Binding ResetTrimCommand}" IsEnabled="{Binding HasDuration}"/>
+                    </Grid>
+                    <controls:RangeSlider Minimum="0" Maximum="{Binding DurationSeconds}"
+                                          LowerValue="{Binding StartSeconds}" UpperValue="{Binding EndSeconds}"
+                                          IsEnabled="{Binding HasDuration}"/>
+                    <Grid Margin="0,4,0,0">
+                        <TextBlock Text="{Binding StartLabel}" Style="{StaticResource ValueLabelStyle}" HorizontalAlignment="Left"/>
+                        <TextBlock Style="{StaticResource ValueLabelStyle}" HorizontalAlignment="Center">
+                            <Run Text="Plays"/> <Run Text="{Binding TrimmedLengthLabel, Mode=OneWay}"/>
+                        </TextBlock>
+                        <TextBlock Text="{Binding EndLabel}" Style="{StaticResource ValueLabelStyle}" HorizontalAlignment="Right"/>
+                    </Grid>
+                    <TextBlock Text="Couldn't read this clip's length — the file may be missing."
+                               TextWrapping="Wrap" Margin="0,6,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource ValueLabelStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasDuration}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!-- Speed -->
+                    <Grid Margin="0,24,0,0">
+                        <TextBlock Text="PLAYBACK SPEED" Style="{StaticResource SectionLabelStyle}"/>
+                        <Button Content="Reset" Style="{StaticResource LinkButtonStyle}" FontSize="11"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Command="{Binding ResetSpeedCommand}"/>
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="44"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Minimum="0.25" Maximum="3"
+                                Value="{Binding Speed, Mode=TwoWay}" SmallChange="0.05" LargeChange="0.25"
+                                VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" Text="{Binding SpeedLabel}" Style="{StaticResource ValueLabelStyle}"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Grid Margin="0,2,44,0">
+                        <TextBlock Text="0.25x" Style="{StaticResource ValueLabelStyle}" FontSize="10" HorizontalAlignment="Left"/>
+                        <TextBlock Text="3x" Style="{StaticResource ValueLabelStyle}" FontSize="10" HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <!-- Random play -->
+                    <Grid Margin="0,24,0,0">
+                        <TextBlock Text="PLAY RANDOMLY" Style="{StaticResource SectionLabelStyle}" VerticalAlignment="Center" Margin="0"/>
+                        <ToggleButton Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right"
+                                      IsChecked="{Binding RandomPlayEnabled, Mode=TwoWay}"/>
+                    </Grid>
+                    <Grid Margin="0,12,0,0" IsEnabled="{Binding RandomPlayEnabled}">
+                        <Grid.Style>
+                            <Style TargetType="{x:Type Grid}">
+                                <Style.Triggers>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Opacity" Value="0.45"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Min delay (sec)" Style="{StaticResource ValueLabelStyle}" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding RandomMinDelaySeconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     KeyDown="DelayBox_KeyDown"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Max delay (sec)" Style="{StaticResource ValueLabelStyle}" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding RandomMaxDelaySeconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     KeyDown="DelayBox_KeyDown"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="Plays this clip on its own at a random time between the two delays, again and again, while enabled."
+                               Style="{StaticResource ValueLabelStyle}" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Footer -->
+            <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                <StackPanel>
+                    <Button Content="{Binding PreviewButtonLabel}" Style="{StaticResource PrimaryButtonStyle}"
+                            Command="{Binding TogglePreviewCommand}" HorizontalAlignment="Stretch"/>
+                    <TextBlock Text="Plays on your speakers only, not the virtual cable."
+                               Style="{StaticResource ValueLabelStyle}" FontSize="11" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

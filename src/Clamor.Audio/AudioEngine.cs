@@ -40,8 +40,15 @@ public sealed class AudioEngine : IDisposable
     private VolumeSampleProvider? _monitorVolume;
     private float _masterVolume = 1f;
 
+    private readonly object _previewLock = new();
+    private PreviewSession? _preview;
+
     public event EventHandler<Guid>? ClipStarted;
     public event EventHandler<Guid>? ClipStopped;
+
+    /// <summary>Raised when a preview ends, whether it ran out or was stopped. Like the clip
+    /// events it can fire off the UI thread.</summary>
+    public event EventHandler? PreviewStopped;
 
     public bool IsMicPassthroughActive => _micPassthrough.IsActive;
 
@@ -128,13 +135,17 @@ public sealed class AudioEngine : IDisposable
         _micPassthrough.Stop();
     }
 
-    public Guid PlayClip(SoundClip clip) => PlayClip(clip.FilePath, clip.Volume);
+    public Guid PlayClip(SoundClip clip) =>
+        PlayClip(clip.FilePath, ClipPlaybackOptions.From(clip.Volume, clip.Playback));
 
-    public Guid PlayClip(string filePath, double volume)
+    public Guid PlayClip(string filePath, double volume) =>
+        PlayClip(filePath, ClipPlaybackOptions.Default with { Volume = (float)volume });
+
+    public Guid PlayClip(string filePath, ClipPlaybackOptions options)
     {
         var voiceId = Guid.NewGuid();
-        var cablePlayer = new ClipPlayer(filePath, (float)volume, _format);
-        var monitorPlayer = new ClipPlayer(filePath, (float)volume, _format);
+        var cablePlayer = new ClipPlayer(filePath, options, _format);
+        var monitorPlayer = new ClipPlayer(filePath, options, _format);
         var voice = new Voice(cablePlayer, monitorPlayer);
 
         lock (_voiceLock)
@@ -186,6 +197,74 @@ public sealed class AudioEngine : IDisposable
     }
 
     /// <summary>
+    /// Plays a clip on its own on <paramref name="deviceId"/> — never through either mixer, so
+    /// nothing reaches the virtual cable and the master volume doesn't apply. Only one preview
+    /// runs at a time; starting another replaces it.
+    /// </summary>
+    public void StartPreview(string filePath, ClipPlaybackOptions options, string deviceId)
+    {
+        StopPreview();
+
+        var device = _deviceEnumerator.GetDevice(deviceId);
+        ClipPlayer? player = null;
+        WasapiOut? output = null;
+        try
+        {
+            player = new ClipPlayer(filePath, options, _format);
+            output = new WasapiOut(device, AudioClientShareMode.Shared, true, LatencyMs);
+            output.Init(player.Output);
+        }
+        catch
+        {
+            output?.Dispose();
+            player?.Dispose();
+            device.Dispose();
+            throw;
+        }
+
+        var session = new PreviewSession(output, player, device);
+        lock (_previewLock)
+        {
+            _preview = session;
+        }
+
+        // Fires when the clip runs out on its own; a StopPreview has already detached the
+        // session by the time this runs, so EndPreview ignores it then.
+        output.PlaybackStopped += (_, _) => EndPreview(session);
+        output.Play();
+    }
+
+    public void StopPreview()
+    {
+        PreviewSession? session;
+        lock (_previewLock)
+        {
+            session = _preview;
+        }
+
+        if (session is not null)
+        {
+            EndPreview(session);
+        }
+    }
+
+    private void EndPreview(PreviewSession session)
+    {
+        lock (_previewLock)
+        {
+            if (!ReferenceEquals(_preview, session))
+            {
+                return;
+            }
+
+            _preview = null;
+        }
+
+        session.Dispose();
+        PreviewStopped?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
     /// A voice is two players (cable + monitor) that reached end-of-file independently — each
     /// mixer detects and removes its own finished input on its own callback thread. The voice
     /// is only torn down once <em>both</em> sides have reported ending, so a few milliseconds
@@ -234,10 +313,33 @@ public sealed class AudioEngine : IDisposable
 
     public void Dispose()
     {
+        StopPreview();
         StopAll();
         StopMicPassthrough();
         StopOutputs();
         _deviceEnumerator.Dispose();
+    }
+
+    private sealed class PreviewSession : IDisposable
+    {
+        private readonly WasapiOut _output;
+        private readonly ClipPlayer _player;
+        private readonly MMDevice _device;
+
+        public PreviewSession(WasapiOut output, ClipPlayer player, MMDevice device)
+        {
+            _output = output;
+            _player = player;
+            _device = device;
+        }
+
+        public void Dispose()
+        {
+            _output.Stop();
+            _output.Dispose();
+            _player.Dispose();
+            _device.Dispose();
+        }
     }
 
     private sealed class Voice : IDisposable

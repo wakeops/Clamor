@@ -27,6 +27,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private readonly HotkeyService _hotkeyService;
     private readonly DeviceManager _deviceManager;
     private readonly Dispatcher _dispatcher;
+    private readonly RandomPlaybackScheduler _randomScheduler;
 
     private readonly Dictionary<Guid, SoundClipViewModel> _clipsById = new();
     private readonly Dictionary<Guid, Guid> _voiceToClip = new();
@@ -45,6 +46,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     /// because it's set on the UI thread but read from <see cref="HotkeyService"/>'s own thread.</summary>
     private volatile bool _isCapturingHotkey;
     private string _searchText = string.Empty;
+    private ClipPlaybackViewModel? _playbackDrawer;
 
     public ObservableCollection<SoundClipViewModel> Clips { get; } = new();
 
@@ -114,6 +116,21 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     /// <summary>"1 Sound" / "N Sounds" — singular only at exactly one clip.</summary>
     public string SoundCountLabel => SoundCount == 1 ? "1 Sound" : $"{SoundCount} Sounds";
 
+    /// <summary>The clip open in the Playback drawer, or null while the drawer is closed.</summary>
+    public ClipPlaybackViewModel? PlaybackDrawer
+    {
+        get => _playbackDrawer;
+        private set
+        {
+            if (SetField(ref _playbackDrawer, value))
+            {
+                OnPropertyChanged(nameof(IsPlaybackDrawerOpen));
+            }
+        }
+    }
+
+    public bool IsPlaybackDrawerOpen => _playbackDrawer is not null;
+
     public string ActiveProfileName => _clipLibrary.CurrentProfile.Name;
 
     /// <summary>Two-way bound to the deck dropdown — picking a profile here both loads its
@@ -132,6 +149,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public RelayCommand<SoundClipViewModel> RenameClipCommand { get; }
     public RelayCommand<SoundClipViewModel> AssignHotkeyCommand { get; }
     public RelayCommand<SoundClipViewModel> ClearHotkeyCommand { get; }
+    public RelayCommand<SoundClipViewModel> OpenPlaybackCommand { get; }
+    public RelayCommand ClosePlaybackDrawerCommand { get; }
     public RelayCommand AddProfileCommand { get; }
 
     public MainViewModel(
@@ -151,6 +170,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _hotkeyService = hotkeyService;
         _deviceManager = deviceManager;
         _dispatcher = Application.Current.Dispatcher;
+        _randomScheduler = new RandomPlaybackScheduler(PlayClipRandomly);
 
         ClipsView = CollectionViewSource.GetDefaultView(Clips);
         ClipsView.Filter = MatchesSearch;
@@ -166,6 +186,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _audioEngine.MasterVolume = (float)_masterVolume;
 
         _audioEngine.ClipStopped += OnClipStopped;
+        _audioEngine.PreviewStopped += OnPreviewStopped;
         _hotkeyService.HotkeyPressed += OnHotkeyPressed;
 
         AddClipCommand = new RelayCommand(AddClips);
@@ -176,6 +197,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         RenameClipCommand = new RelayCommand<SoundClipViewModel>(BeginRenameClip);
         AssignHotkeyCommand = new RelayCommand<SoundClipViewModel>(BeginHotkeyCapture);
         ClearHotkeyCommand = new RelayCommand<SoundClipViewModel>(ClearHotkey);
+        OpenPlaybackCommand = new RelayCommand<SoundClipViewModel>(OpenPlayback);
+        ClosePlaybackDrawerCommand = new RelayCommand(_ => ClosePlaybackDrawer());
         AddProfileCommand = new RelayCommand(AddProfile);
 
         LoadClipsFromProfile();
@@ -188,6 +211,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private void LoadClipsFromProfile()
     {
+        ClosePlaybackDrawer();
+        _randomScheduler.StopAll();
         Clips.Clear();
         _clipsById.Clear();
 
@@ -197,6 +222,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             Clips.Add(vm);
             _clipsById[vm.Id] = vm;
             TryRegisterClipHotkey(vm);
+            _randomScheduler.Update(vm.Id, vm.Playback);
         }
     }
 
@@ -240,6 +266,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        if (PlaybackDrawer?.Clip == clipVm)
+        {
+            ClosePlaybackDrawer();
+        }
+
+        _randomScheduler.Stop(clipVm.Id);
         UnregisterClipHotkey(clipVm);
         _clipLibrary.RemoveClip(clipVm.Id);
         Clips.Remove(clipVm);
@@ -275,7 +307,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var voiceId = _audioEngine.PlayClip(clipVm.FilePath, clipVm.Volume);
+        var voiceId = _audioEngine.PlayClip(clipVm.FilePath, ClipPlaybackOptions.From(clipVm.Volume, clipVm.Playback));
         lock (_voiceMapLock)
         {
             _voiceToClip[voiceId] = clipVm.Id;
@@ -284,7 +316,130 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         clipVm.IncrementPlaying();
     }
 
+    /// <summary>A random play happens with nobody at the keyboard, so a clip whose file has
+    /// gone missing just stops its schedule instead of surfacing an error.</summary>
+    private void PlayClipRandomly(Guid clipId)
+    {
+        if (!_clipsById.TryGetValue(clipId, out var clipVm))
+        {
+            _randomScheduler.Stop(clipId);
+            return;
+        }
+
+        try
+        {
+            PlayClip(clipVm);
+        }
+        catch (IOException)
+        {
+            _randomScheduler.Stop(clipId);
+        }
+    }
+
     public void StopAll(object? parameter = null) => _audioEngine.StopAll();
+
+    private void OpenPlayback(SoundClipViewModel? clipVm)
+    {
+        if (clipVm is null)
+        {
+            return;
+        }
+
+        ClosePlaybackDrawer();
+        PlaybackDrawer = new ClipPlaybackViewModel(
+            clipVm,
+            ClipPlayer.ReadDuration(clipVm.FilePath),
+            playback => SavePlayback(clipVm, playback),
+            () => TogglePreview(clipVm),
+            ClosePlaybackDrawer);
+    }
+
+    private void ClosePlaybackDrawer()
+    {
+        if (PlaybackDrawer is null)
+        {
+            return;
+        }
+
+        _audioEngine.StopPreview();
+        PlaybackDrawer = null;
+    }
+
+    private void SavePlayback(SoundClipViewModel clipVm, ClipPlaybackSettings playback)
+    {
+        var previous = clipVm.Playback;
+        _clipLibrary.UpdatePlayback(clipVm.Id, playback);
+
+        // Only a change to the random window restarts the countdown — dragging the trim or
+        // speed sliders shouldn't keep pushing the next random play back.
+        var current = clipVm.Playback;
+        if (previous.RandomPlayEnabled != current.RandomPlayEnabled ||
+            previous.RandomMinDelaySeconds != current.RandomMinDelaySeconds ||
+            previous.RandomMaxDelaySeconds != current.RandomMaxDelaySeconds)
+        {
+            _randomScheduler.Update(clipVm.Id, current);
+        }
+    }
+
+    private void TogglePreview(SoundClipViewModel clipVm)
+    {
+        if (PlaybackDrawer is not { } drawer)
+        {
+            return;
+        }
+
+        if (drawer.IsPreviewing)
+        {
+            _audioEngine.StopPreview();
+            return;
+        }
+
+        var deviceId = ResolvePreviewDeviceId();
+        if (deviceId is null)
+        {
+            MessageDialog.ShowInfo(Application.Current.MainWindow, "Preview unavailable",
+                "No playback device other than the virtual cable was found.");
+            return;
+        }
+
+        try
+        {
+            _audioEngine.StartPreview(clipVm.FilePath, ClipPlaybackOptions.From(clipVm.Volume, clipVm.Playback), deviceId);
+        }
+        catch (Exception ex) when (ex is IOException or System.Runtime.InteropServices.COMException)
+        {
+            MessageDialog.ShowInfo(Application.Current.MainWindow, "Preview unavailable", ex.Message);
+            return;
+        }
+
+        drawer.IsPreviewing = true;
+    }
+
+    /// <summary>
+    /// The system default output, unless that's the virtual cable — then the first other
+    /// output. "The cable" is any VB-Cable endpoint, plus whatever device is configured as the
+    /// cable output when it isn't also the system default (with no VB-Cable installed that
+    /// setting falls back to the default speakers, which are still fine to preview on).
+    /// </summary>
+    private string? ResolvePreviewDeviceId()
+    {
+        var devices = _deviceManager.GetOutputDevices();
+        bool IsCable(AudioDeviceInfo d) =>
+            d.Name.Contains(DeviceManager.VbCableDeviceNameFragment, StringComparison.OrdinalIgnoreCase) ||
+            (d.Id == _settings.OutputDeviceId && !d.IsDefault);
+
+        var preview = devices.FirstOrDefault(d => d.IsDefault && !IsCable(d)) ?? devices.FirstOrDefault(d => !IsCable(d));
+        return preview?.Id;
+    }
+
+    private void OnPreviewStopped(object? sender, EventArgs e) =>
+        _dispatcher.BeginInvoke(() =>
+        {
+            if (PlaybackDrawer is not null)
+            {
+                PlaybackDrawer.IsPreviewing = false;
+            }
+        });
 
     private void OnClipStopped(object? sender, Guid voiceId)
     {
@@ -630,6 +785,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _audioEngine.ClipStopped -= OnClipStopped;
+        _audioEngine.PreviewStopped -= OnPreviewStopped;
+        _randomScheduler.Dispose();
         _hotkeyService.HotkeyPressed -= OnHotkeyPressed;
     }
 }

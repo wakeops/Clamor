@@ -26,5 +26,7 @@ public interface IClipLibraryService
 
     void RenameClip(Guid clipId, string name);
 
+    void UpdatePlayback(Guid clipId, ClipPlaybackSettings playback);
+
     void Save();
 }

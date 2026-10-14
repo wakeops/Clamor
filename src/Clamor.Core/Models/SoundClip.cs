@@ -15,4 +15,6 @@ public sealed class SoundClip
     public int SortOrder { get; set; }
 
     public HotkeyBinding? Hotkey { get; set; }
+
+    public ClipPlaybackSettings Playback { get; set; } = new();
 }
