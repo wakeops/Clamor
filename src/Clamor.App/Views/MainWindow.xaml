@@ -5,6 +5,9 @@
         Title="Clamor" Height="650" Width="900" MinWidth="640" MinHeight="420"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True">
+    <Window.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding ClosePlaybackDrawerCommand}"/>
+    </Window.InputBindings>
     <Border Style="{StaticResource WindowBorderStyle}" CornerRadius="8">
     <Grid>
         <Grid.RowDefinitions>
@@ -150,6 +153,27 @@
                         </StackPanel>
                     </Grid>
                 </Border>
+
+                <!-- Playback drawer: slides in over the deck from the left (animated in
+                     MainWindow.xaml.cs); clicking the dimmed area beside it closes it. -->
+                <Grid x:Name="PlaybackDrawerHost" Grid.RowSpan="2"
+                      Visibility="{Binding IsPlaybackDrawerOpen, Converter={StaticResource BoolToVisibilityConverter}}"
+                      IsVisibleChanged="PlaybackDrawerHost_IsVisibleChanged">
+                    <Border x:Name="PlaybackDrawerScrim" Background="#99000000">
+                        <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick" Command="{Binding ClosePlaybackDrawerCommand}"/>
+                        </Border.InputBindings>
+                    </Border>
+                    <local:PlaybackDrawer x:Name="PlaybackDrawerPanel" DataContext="{Binding PlaybackDrawer}"
+                                          Width="340" HorizontalAlignment="Left">
+                        <local:PlaybackDrawer.RenderTransform>
+                            <TranslateTransform/>
+                        </local:PlaybackDrawer.RenderTransform>
+                        <local:PlaybackDrawer.Effect>
+                            <DropShadowEffect Color="Black" Opacity="0.5" BlurRadius="20" ShadowDepth="0"/>
+                        </local:PlaybackDrawer.Effect>
+                    </local:PlaybackDrawer>
+                </Grid>
             </Grid>
         </Grid>
     </Grid>

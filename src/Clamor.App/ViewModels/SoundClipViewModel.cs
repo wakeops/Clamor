@@ -66,6 +66,10 @@ public sealed class SoundClipViewModel : ViewModelBase
 
     public HotkeyBinding? Hotkey => _model.Hotkey;
 
+    /// <summary>Live view of the model's playback settings — <see cref="MainViewModel"/>
+    /// replaces them through the clip library, which swaps this same model's instance.</summary>
+    public ClipPlaybackSettings Playback => _model.Playback;
+
     public bool HasHotkey => _model.Hotkey is not null;
 
     /// <summary>Registration id handed back by HotkeyService for the currently-bound hotkey,

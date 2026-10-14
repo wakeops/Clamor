@@ -69,6 +69,9 @@
                                     <MenuItem Header="Rename"
                                               Command="{Binding PlacementTarget.Tag.DataContext.RenameClipCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                    <MenuItem Header="Playback"
+                                              Command="{Binding PlacementTarget.Tag.DataContext.OpenPlaybackCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                     <MenuItem Header="Set Hotkey"
                                               Command="{Binding PlacementTarget.Tag.DataContext.AssignHotkeyCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>

@@ -120,4 +120,46 @@ public class ClipLibraryServiceTests
         Assert.Equal("Streaming", service.CurrentProfile.Name);
         Assert.Empty(service.CurrentProfile.Clips);
     }
+
+    [Fact]
+    public void UpdatePlayback_PersistsNormalizedSettings()
+    {
+        using var dir = new TempDirectory();
+        var profileService = new ProfileService(dir.Path);
+        var service = new ClipLibraryService(profileService);
+        var clip = service.AddClip(CreateDummyAudioFile(dir.Path));
+
+        service.UpdatePlayback(clip.Id, new Clamor.Core.Models.ClipPlaybackSettings
+        {
+            StartSeconds = 0.5,
+            EndSeconds = 2,
+            Speed = 9,
+            RandomPlayEnabled = true,
+            RandomMinDelaySeconds = 10,
+            RandomMaxDelaySeconds = 20,
+        });
+
+        var reloaded = profileService.Load("Default").Clips[0].Playback;
+        Assert.Equal(0.5, reloaded.StartSeconds);
+        Assert.Equal(2, reloaded.EndSeconds);
+        Assert.Equal(3.0, reloaded.Speed);
+        Assert.True(reloaded.RandomPlayEnabled);
+        Assert.Equal(10, reloaded.RandomMinDelaySeconds);
+        Assert.Equal(20, reloaded.RandomMaxDelaySeconds);
+    }
+
+    [Fact]
+    public void ProfileWithoutPlayback_LoadsDefaults()
+    {
+        using var dir = new TempDirectory();
+        var profileService = new ProfileService(dir.Path);
+        File.WriteAllText(Path.Combine(profileService.ProfilesDirectory, "Default.json"),
+            """{ "Name": "Default", "Clips": [ { "Name": "Old", "FilePath": "x.wav", "Volume": 1 } ] }""");
+
+        var profile = profileService.Load("Default");
+
+        Assert.Equal(1.0, profile.Clips[0].Playback.Speed);
+        Assert.Null(profile.Clips[0].Playback.EndSeconds);
+        Assert.False(profile.Clips[0].Playback.RandomPlayEnabled);
+    }
 }

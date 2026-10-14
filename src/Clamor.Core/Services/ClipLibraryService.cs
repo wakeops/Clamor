@@ -94,6 +94,13 @@ public sealed class ClipLibraryService : IClipLibraryService
         RaiseClipsChanged();
     }
 
+    public void UpdatePlayback(Guid clipId, ClipPlaybackSettings playback)
+    {
+        FindClip(clipId).Playback = playback.Normalized();
+        Save();
+        RaiseClipsChanged();
+    }
+
     public void Save() => _profileService.Save(_currentProfile);
 
     private SoundClip FindClip(Guid clipId) =>
